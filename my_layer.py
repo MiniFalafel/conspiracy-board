@@ -1,6 +1,6 @@
 import random
 
-from mist import Layer, vec2, Sprite
+from mist import Layer, vec2, Sprite, UITextInputElement
 from sticky_note import StickyNote
 
 import pygame
@@ -20,12 +20,17 @@ class UIObjectsLayer(Layer):
         # Corkboard
         self.corkboard = Sprite("res/textures/corkboard.png")
 
+        pygame.key.set_repeat(750, 50)
+
         # Populate
         NUM_ELEMENTS = 3
         sprite_path = "res/textures/sticky_note.png"
         for i in range(NUM_ELEMENTS):
             x, y = [random.randint(0, 400) for i in range(2)]
             self.ui_elements.append(StickyNote(vec2(x, y), sprite_path, 200, -30))
+
+        text_el = UITextInputElement(vec2(20, 20), vec2(300, 50), 40, "le bitch")
+        self.ui_elements.append(text_el)
 
         # Load sticky note sounds
         pygame.mixer.init()

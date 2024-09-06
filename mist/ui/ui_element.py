@@ -113,7 +113,7 @@ class UIDraggable (UIElement):
                     self.on_pin()
                     return True
         else: # Button release
-            if button == 1:
+            if button == 1 and self.pin_to_cursor:
                 # Call release callback
                 self.on_release()
                 # Reset pin_to_cursor

@@ -1,2 +1,2 @@
-from log import Log
-from math_types import vec2
+from mist.util.log import Log
+from mist.util.math_types import vec2

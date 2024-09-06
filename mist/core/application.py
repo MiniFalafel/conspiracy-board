@@ -17,6 +17,9 @@ class Application:
         if Application.__s_Instance is not None:
             raise Exception("APPLICATION ALREADY INITIALIZED! You can only have one application instance per program.")
 
+        # Init pygame
+        pygame.init()
+
         # Create a window object
         self.window = Window(width, height, title)
 

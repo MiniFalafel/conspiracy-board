@@ -6,7 +6,7 @@ class SpriteLoader:
     __s_SpriteData = {}
 
     @staticmethod
-    def load(path: str, scale: tuple[int, int] = None):
+    def load(path: str, scale: vec2 = None):
         # Create a key for the data hashmap
         key = path + str(scale)
 
@@ -15,7 +15,7 @@ class SpriteLoader:
             img = pygame.image.load(path)
             # resize (if relevant)
             if scale is not None:
-                img = pygame.transform.scale(img, scale)
+                img = pygame.transform.scale(img, scale.elements)
             # Update the dictionary
             SpriteLoader.__s_SpriteData[key] = img
         # Return whatever is at the key now
@@ -28,8 +28,8 @@ class Sprite(pygame.sprite.Sprite):
         super().__init__()
 
         # use the sprite loader to load the asset
-        self.image = SpriteLoader.load(path, scale.elements)
-        self.rect = pygame.rect.Rect(0, 0, scale[0], scale[1])
+        self.image = SpriteLoader.load(path, scale)
+        self.rect = pygame.rect.Rect(0, 0, *self.image.get_size())
 
     def draw(self, surface, offset: vec2):
         surface.blit(self.image, offset.elements)

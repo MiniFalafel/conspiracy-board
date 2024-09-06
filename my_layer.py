@@ -1,7 +1,9 @@
 import random
 
-from mist import Layer, vec2
+from mist import Layer, vec2, Sprite
 from sticky_note import StickyNote
+
+import pygame
 
 class UIObjectsLayer(Layer):
 
@@ -11,6 +13,13 @@ class UIObjectsLayer(Layer):
         # Create an array of UI elements
         self.ui_elements = []
 
+        # Render surface
+        self.back_buffer = pygame.Surface((1280, 720))
+        self.window_size = self.back_buffer.get_size()
+
+        # Corkboard
+        self.corkboard = Sprite("res/textures/corkboard.png")
+
         # Populate
         NUM_ELEMENTS = 3
         sprite_path = "res/textures/sticky_note.png"
@@ -18,7 +27,14 @@ class UIObjectsLayer(Layer):
             x, y = [random.randint(0, 400) for i in range(2)]
             self.ui_elements.append(StickyNote(vec2(x, y), sprite_path, 200, -30))
 
+        # Load sticky note sounds
+        pygame.mixer.init()
+        StickyNote.load_sound("res/sounds/sticky_note/note_peel.wav")
+        StickyNote.load_sound("res/sounds/sticky_note/note_stick.wav", None, 0.5)
+
     def on_event(self, event) -> bool:
+        if event.type == pygame.WINDOWRESIZED:
+            self.window_size = event.size
         # Store new array for the list in case the order changed
         new_order = self.ui_elements[:]
 
@@ -40,6 +56,12 @@ class UIObjectsLayer(Layer):
         return r
 
     def on_render(self, surface):
+        # Draw the cork board
+        self.corkboard.draw(self.back_buffer, vec2(0, 0))
+
         # Loop through all ui elements
         for el in reversed(self.ui_elements):
-            el.draw(surface)
+            el.draw(self.back_buffer)
+
+        # Draw back_buffer to surface
+        surface.blit(self.back_buffer, (0, 0), pygame.rect.Rect(0, 0, 1280, 720))

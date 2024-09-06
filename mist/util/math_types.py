@@ -57,6 +57,10 @@ class vec2 (Vector):
     def __getitem__(self, item: int):
         return self.elements[item]
 
+    # SET ITEM
+    def __setitem__(self, index: int, v: int):
+        self.elements[index] = v
+
     # COPY
     def copy(self):
         return vec2(*self.elements[:])

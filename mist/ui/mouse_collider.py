@@ -18,17 +18,17 @@ class MouseCollider:
         self.pos = pos
 
 class MouseBoxCollider (MouseCollider):
-    def __init__(self, pos: vec2, dimensions: vec2):
+    def __init__(self, pos: vec2, size: vec2):
         super().__init__(pos)
-        self.dim = dimensions
+        self.size = size
 
     # GETTERS
-    def get_dim(self) -> vec2:
-        return self.dim.copy()
+    def get_size(self) -> vec2:
+        return self.size.copy()
 
     # SETTERS
-    def set_dim(self, dimensions: vec2) -> None:
-        self.dim = dimensions
+    def set_size(self, dimensions: vec2) -> None:
+        self.size = dimensions
 
     # VIRTUAL OVERRIDES
     def check_collision(self, mouse_pos: vec2) -> bool:
@@ -36,7 +36,7 @@ class MouseBoxCollider (MouseCollider):
         for axis in range(2):
             if offset[axis] < 0:
                 return False
-            if offset[axis] > self.dim[axis]:
+            if offset[axis] > self.size[axis]:
                 return False
         return True
 

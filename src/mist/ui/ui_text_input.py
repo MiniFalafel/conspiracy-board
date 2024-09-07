@@ -21,11 +21,13 @@ class UITextInputElement (UIElement):
         self.font = pygame.font.Font(None, self.font_size)
         self.text_surface = None
         self.text_surface_size = self.collider.get_size()
-        self.__update_text()
         # Cursor
         self.cursor = pygame.Surface((2, self.font.size("|")[1]))
         self.cursor.fill(self.color)
         self.cursor_index = len(self.text)
+        self.cursor_pos = vec2(0, 0)
+        # Update text display
+        self.__update_text()
 
     # SETTERS/GETTERS
     def set_pos(self, pos: vec2):
@@ -68,7 +70,9 @@ class UITextInputElement (UIElement):
             # start new line
             new_lines.append("")
         # return
-        return new_lines
+        #return new_lines
+        # TODO: RE-ENABLE LINE WRAPPING
+        return lines
 
     # text update
     def __update_text(self):
@@ -80,6 +84,8 @@ class UITextInputElement (UIElement):
         lines = self.text.replace("\r", "\n").split("\n")
         # wrap the text
         lines = self.__wrap_lines(lines, self.text_surface_size[0])
+        # Update cursor
+        self.cursor_pos = self.__update_cursor(lines)
 
         # Update surface size based on number of lines
         self.text_surface_size[1] = len(lines) * newline_size
@@ -89,10 +95,43 @@ class UITextInputElement (UIElement):
         # Loop through lines, render each, and blit to text surface
 
         for i in range(len(lines)):
+            # Don't bother rendering if the line is blank
+            if lines[i] == "":
+                continue
             # Render the line
             line_img = self.font.render(lines[i], True, self.color)
             # blit to text surface
             self.text_surface.blit(line_img, (0, newline_size * i))
+
+    def cursor_index_to_pos(self, i: int):
+        """
+        s = "This is a line\n\n\nThere are two empty lines above me!\nASLKJHKJHHFHDDGFFDKSJHF and such\n"
+        # IF LINE WRAPPING WAS DISABLED: ---------------
+        l = [
+            "This is a line",
+            "",
+            "",
+            "There are two empty lines above me!",
+            "ASLKJHKJHHFHDDGFFDKSJHF and such",
+            "",
+        ]
+
+        Since the "newline" ('\n', and '\r') were removed at the ends of all the lines
+        """
+        pass
+
+    def __update_cursor(self, lines: list):
+        # Loop through the lines, checking if any
+        #return vec2(self.font.size(self.text[:self.cursor_index])[0], 0)
+        ci = 0
+        cl = 0
+        for line in lines:
+            diff = ci + len(line) - self.cursor_index
+            if diff < 0:
+                ci = -diff
+                break
+            cl += 1
+        return vec2(self.font.size(lines[cl][:ci])[0], cl * self.font.size("X")[1])
 
     def __clamp_cursor(self):
         self.cursor_index = max(0, min(self.cursor_index, len(self.text)))
@@ -161,7 +200,5 @@ class UITextInputElement (UIElement):
         surface.blit(self.text_surface, self.get_pos().elements)
         # Draw cursor
         if self.active:
-            # Get cursor display position
-            cursor_offset = self.font.size(self.text[:self.cursor_index])
-            surface.blit(self.cursor, (vec2(cursor_offset[0], 0) + self.get_pos()).elements)
+            surface.blit(self.cursor, (self.cursor_pos + self.get_pos()).elements)
 

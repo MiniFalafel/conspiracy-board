@@ -44,12 +44,6 @@ class UITextInputElement (UIElement):
     def is_active(self):
         return self.active
 
-    def __split_lines(self, text: str):
-        """
-        This splits words up while also preserving the newlines at the ends of some words
-        """
-        pass
-
     def __wrap_lines(self, lines: list, wrap_width: int):
         # initialize return
         new_lines = [""]
@@ -59,8 +53,15 @@ class UITextInputElement (UIElement):
             for char in line:
                 # Check the width of the current line if it had this character
                 if self.font.size((new_lines[-1] + char))[0] > wrap_width:
-                    # too big, start new line with char
-                    new_lines.append(char)
+                    # too big, start new line
+                    # Find last space
+                    i = new_lines[-1].rfind(" ")
+                    if i == -1:
+                        new_lines.append(char)
+                    else:
+                        # Add whatever's after the space to the new line
+                        new_lines.append(new_lines[-1][i + 1:] + char)
+                        new_lines[-2] = new_lines[-2][:i]
                 else:
                     # not too big, keep adding to this line
                     new_lines[-1] += char

@@ -160,7 +160,8 @@ class UITextInputElement (UIElement):
         # Draw text
         surface.blit(self.text_surface, self.get_pos().elements)
         # Draw cursor
-        # Get cursor display position
-        cursor_offset = self.font.size(self.text[:self.cursor_index])
-        surface.blit(self.cursor, (vec2(cursor_offset[0], 0) + self.get_pos()).elements)
+        if self.active:
+            # Get cursor display position
+            cursor_offset = self.font.size(self.text[:self.cursor_index])
+            surface.blit(self.cursor, (vec2(cursor_offset[0], 0) + self.get_pos()).elements)
 

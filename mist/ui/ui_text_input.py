@@ -19,9 +19,12 @@ class UITextInputElement (UIElement):
         self.text = initial_text
         self.font_size = font_size
         self.font = pygame.font.Font(None, self.font_size)
-        self.text_surface = pygame.Surface(self.collider.get_size().elements, pygame.SRCALPHA, 32)
+        self.text_surface = None
+        self.text_surface_size = self.collider.get_size()
+        self.__update_text()
         # Cursor
-        self.cursor = pygame.rect.Rect(0, 0, 3, self.font_size)
+        self.cursor = pygame.Surface((2, self.font.size("|")[1]))
+        self.cursor.fill(self.color)
         self.cursor_index = len(self.text)
 
     # SETTERS/GETTERS
@@ -41,40 +44,54 @@ class UITextInputElement (UIElement):
     def is_active(self):
         return self.active
 
+    def __split_lines(self, text: str):
+        """
+        This splits words up while also preserving the newlines at the ends of some words
+        """
+        pass
+
+    def __wrap_lines(self, lines: list, wrap_width: int):
+        # initialize return
+        new_lines = [""]
+        # loop through each line
+        for line in lines:
+            # loop through all the characters
+            for char in line:
+                # Check the width of the current line if it had this character
+                if self.font.size((new_lines[-1] + char))[0] > wrap_width:
+                    # too big, start new line with char
+                    new_lines.append(char)
+                else:
+                    # not too big, keep adding to this line
+                    new_lines[-1] += char
+            # start new line
+            new_lines.append("")
+        # return
+        return new_lines
+
     # text update
     def __update_text(self):
-        # Empty the surface
-        self.text_surface = pygame.Surface(self.collider.get_size().elements, pygame.SRCALPHA, 32)
-        self.text_surface = self.text_surface.convert_alpha()
-
         # MANUAL TEXT DRAW
-        offset = vec2(0, 0)
+        # size of each line
         newline_size = self.font.size("X")[1]
-        space_size = self.font.size(" ")[0]
-        for word in self.text.split(" "):
-            # extra variables teehee
-            s = self.font.size(word)
-            has_newline = False
-            if len(word) != 0:
-                # If it has a newline at the end, cut it off
-                if word[-1] == '\n':
-                    word = word[:-1]
-                    has_newline = True
 
-                # Check if it'll fit within the boundary on the x-axis
-                if s[0] + offset[0] > self.get_size()[0]:
-                    # reset offset x and add a newline
-                    offset[0] = 0
-                    offset[1] += newline_size
-                # RENDER
-                image = self.font.render(word, True, self.color)
+        # Split current text into lines
+        lines = self.text.replace("\r", "\n").split("\n")
+        # wrap the text
+        lines = self.__wrap_lines(lines, self.text_surface_size[0])
 
-                self.text_surface.blit(image, offset.elements)
+        # Update surface size based on number of lines
+        self.text_surface_size[1] = len(lines) * newline_size
+        # Empty the surface
+        self.text_surface = pygame.Surface(self.text_surface_size.elements, pygame.SRCALPHA, 32)
+        self.text_surface = self.text_surface.convert_alpha()
+        # Loop through lines, render each, and blit to text surface
 
-            # Increment offset to prepare for next word
-            offset[0] += s[0] + space_size
-            if has_newline:
-                offset[1] += newline_size
+        for i in range(len(lines)):
+            # Render the line
+            line_img = self.font.render(lines[i], True, self.color)
+            # blit to text surface
+            self.text_surface.blit(line_img, (0, newline_size * i))
 
     def __clamp_cursor(self):
         self.cursor_index = max(0, min(self.cursor_index, len(self.text)))
@@ -87,10 +104,14 @@ class UITextInputElement (UIElement):
             if collided:
                 # Grab focus, set active
                 self.active = True
+                # enable key repeating
+                pygame.key.set_repeat(750, 50)
                 return True
             else:
                 # Un-focus
                 self.active = False
+                # disable key repeating
+                pygame.key.set_repeat(0, 0)
         return False
 
     def keyboard_type_event(self, key, char: str) -> bool:
@@ -137,4 +158,8 @@ class UITextInputElement (UIElement):
     def draw(self, surface: pygame.Surface):
         # Draw text
         surface.blit(self.text_surface, self.get_pos().elements)
+        # Draw cursor
+        # Get cursor display position
+        cursor_offset = self.font.size(self.text[:self.cursor_index])
+        surface.blit(self.cursor, (vec2(cursor_offset[0], 0) + self.get_pos()).elements)
 

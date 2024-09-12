@@ -6,6 +6,94 @@ from mist.ui import MouseBoxCollider
 
 import math
 
+# Keeping this separate from the UITextInputElement makes the code look a little cleaner
+class Cursor:
+    def __init__(self, font: pygame.font.Font):
+        # Font pointer
+        self.font = font
+        # Render surface
+        self.surface = pygame.Surface((2, self.font.size("\n")[1])) # Cursor is 2px by the height of a line
+        self.surface.fill((0, 0, 0))
+        # Data
+        self.index = 0
+        self.pos = vec2(0, 0)
+
+    # NAVIGATION
+    def navigate(self, text: str, direction: vec2, modifiers: pygame.key):
+        self.index += direction[0]
+
+    # index conversion
+    def __index_to_pos(self, lines: list):
+        if len(lines) == 0:
+            return vec2(0, 0)
+        # Otherwise, increment index until we catch up
+        t = 0
+        local = 0
+        line_i = 0
+        while self.index > t and line_i < len(lines):
+            # Check if we're out of bounds with this line
+            if local >= len(lines[line_i]) and not (len(lines) == line_i):
+                # Increment t by an extra character (missing newline)
+                t += 1
+                # Increment the line we're on
+                line_i += 1
+                # Reset local offset
+                local = 0
+                continue
+            # Increment the local index and the total
+            t += 1
+            local += 1
+
+        # clamp line_i to be less than the number of lines
+        line_i = min(line_i, len(lines) - 1)
+
+        # Get size of the line and local string
+        s = self.font.size(lines[line_i][:local])
+        # Return a relative offset
+        return vec2(s[0], line_i * self.surface.get_size()[1])
+
+    # CLAMP to text
+    def clamp(self, text):
+        self.index = max(0, min(self.index, len(text)))
+
+    # TEXT OPERATIONS
+    def backspace(self, text: str, mod: pygame.key):
+        # Backspace the text from the cursor pos
+        new_text = list(text)
+        new_text.pop(self.index - 1) # TODO: Check that this removes the correct character
+        text = "".join(new_text)
+        self.index -= 1 # decrement cursor index
+        return text
+
+    def type_char(self, text: str, char: str):
+        # Insert char in at the cursor index
+        new_text = list(text)
+        new_text.insert(self.index, char)
+        text = "".join(new_text)
+        self.index += 1 # Increment cursor pos
+        return text
+
+    def update(self, text: str, lines: list):
+        # clamp and update the pos
+        self.clamp(text)
+        self.pos = self.__index_to_pos(lines)
+
+    # Rendering
+    def draw(self, surface: pygame.Surface, offset: vec2):
+        # Draw cursor
+        p = self.pos + offset
+        surface.blit(self.surface, p.elements)
+
+    # GETTERS
+    def get_index(self):
+        return self.index
+
+    def get_height(self) -> int:
+        return self.surface.get_height()
+
+    def get_pos(self) -> vec2:
+        return self.pos
+
 class UITextInputElement (UIElement):
     def __init__(self, pos: vec2, size: vec2, font_size: int, initial_text: str = ""):
         super().__init__()
@@ -29,10 +117,7 @@ class UITextInputElement (UIElement):
         self.render_surface = pygame.Surface(self.collider.get_size().elements, pygame.SRCALPHA, 32)
         self.render_surface = self.render_surface.convert_alpha()
         # Cursor
-        self.cursor = pygame.Surface((2, self.font.size("|")[1]))
-        self.cursor.fill(self.color)
-        self.cursor_index = len(self.text)
-        self.cursor_pos = vec2(0, 0)
+        self.cursor = Cursor(self.font)
         # Update text display
         self.__update_text()
 
@@ -66,7 +151,7 @@ class UITextInputElement (UIElement):
             case pygame.MOUSEWHEEL:
                 return self.mouse_scroll_event(event.y)
             case pygame.KEYDOWN:
-                return self.keyboard_type_event(event.key, event.unicode)
+                return self.keyboard_type_event(event.key, event.mod, event.unicode)
 
     @staticmethod
     def __curve_scroll_speed(scroll_amount, curve_amt: float, scale: float = 5.0) -> int:
@@ -84,8 +169,7 @@ class UITextInputElement (UIElement):
 
     def __clamp_scroll_to_cursor(self):
         # w is the height of the cursor character
-        w = self.cursor.get_size()[1]
-        self.scroll_offset = max(-self.cursor_pos[1], min(self.scroll_offset, self.get_size()[1] - (self.cursor_pos[1] + w)))
+        self.scroll_offset = max(-self.cursor.get_pos()[1], min(self.scroll_offset, self.get_size()[1] - (self.cursor.get_pos()[1] + self.cursor.get_height())))
         # Clamp back into the scroll surface
         self.__clamp_scroll_to_surface()
 
@@ -116,16 +200,12 @@ class UITextInputElement (UIElement):
                 pygame.key.set_repeat(0, 0)
         return False
 
-    def keyboard_type_event(self, key, char: str) -> bool:
+    def keyboard_type_event(self, key, mod, char: str) -> bool:
         if self.active:
             # Check if the key is backspace
             if key == pygame.K_BACKSPACE:
-                if self.cursor_index > 0:
-                    # Backspace the text from the cursor pos
-                    new_text = list(self.text)
-                    new_text.pop(self.cursor_index - 1) # TODO: Check that this removes the correct character
-                    self.text = "".join(new_text)
-                    self.cursor_index -= 1 # decrement cursor index
+                if self.cursor.get_index() > 0:
+                    self.text = self.cursor.backspace(self.text, mod)
             # Capture modifier keys because for some reason if you don't they're interpreted as other things??? thanks pygame
             elif key == pygame.K_LSHIFT or key == pygame.K_LCTRL or key == pygame.K_RSHIFT or key == pygame.K_RCTRL\
                     or key == pygame.K_LALT or key == pygame.K_RALT or key == pygame.K_LMETA or key == pygame.K_RMETA:
@@ -137,12 +217,7 @@ class UITextInputElement (UIElement):
                 self.cursor_nav(vec2(1, 0))
             # Otherwise, type the char
             else:
-                # Insert char in at the cursor index
-                new_text = list(self.text)
-                new_text.insert(self.cursor_index, char)
-                self.text = "".join(new_text)
-                # Increment cursor pos
-                self.cursor_index += 1
+                self.text = self.cursor.type_char(self.text, char)
             # Update text
             self.__update_text()
             # return
@@ -152,7 +227,7 @@ class UITextInputElement (UIElement):
 
     def cursor_nav(self, direction: vec2, modifiers: pygame.key = None):
         # Update the position
-        self.cursor_index += direction[0]
+        self.cursor.navigate(self.text, direction, modifiers)
         # Clamp the scroll to have editing pos in view
         self.__clamp_scroll_to_cursor()
 
@@ -216,44 +291,10 @@ class UITextInputElement (UIElement):
             # blit to text surface
             self.text_surface.blit(line_img, (0, newline_size * i))
 
-    def cursor_index_to_pos(self, lines: list, i: int):
-        if len(lines) == 0:
-            return vec2(0, 0)
-        # Otherwise, increment index until we catch up
-        t = 0
-        local = 0
-        line_i = 0
-        while i > t and line_i < len(lines):
-            # Check if we're out of bounds with this line
-            if local >= len(lines[line_i]) and not (len(lines) == line_i):
-                # Increment t by an extra character (missing newline)
-                t += 1
-                # Increment the line we're on
-                line_i += 1
-                # Reset local offset
-                local = 0
-                continue
-            # Increment the local index and the total
-            t += 1
-            local += 1
-
-        # clamp line_i to be less than the number of lines
-        line_i = min(line_i, len(lines) - 1)
-
-        # Get size of the line and local string
-        s = self.font.size(lines[line_i][:local])
-        # Return a relative offset
-        return vec2(s[0], line_i * self.cursor.get_size()[1])
-
     def __update_cursor(self, lines: list):
-        # Loop through the lines, checking if any
-        self.__clamp_cursor()
-        self.cursor_pos = self.cursor_index_to_pos(lines, self.cursor_index)
+        self.cursor.update(self.text, lines)
         # Remember that this is only called when edits are made, so we're okay to clamp scroll to cursor here (won't disallow users from scrolling away)
         self.__clamp_scroll_to_cursor()
-
-    def __clamp_cursor(self):
-        self.cursor_index = max(0, min(self.cursor_index, len(self.text)))
 
     def draw_render_surface(self):
         # Clear
@@ -269,9 +310,8 @@ class UITextInputElement (UIElement):
 
         # IF ACTIVE
         if self.active:
-            # Draw cursor
-            p = vec2(self.cursor_pos[0], self.cursor_pos[1] + s)
-            self.render_surface.blit(self.cursor, p.elements)
+            # Draw the cursor, making sure to offset for scroll
+            self.cursor.draw(self.render_surface, vec2(0, s))
 
         # Draw text
         self.render_surface.blit(self.text_surface, (0, s))

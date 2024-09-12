@@ -70,8 +70,8 @@ class UITextInputElement (UIElement):
             # start new line
             new_lines.append("")
         # return
-        #return new_lines
-        # TODO: RE-ENABLE LINE WRAPPING
+        #return new_lines[:-1]
+        # TODO: Make this actually return wrapped lines
         return lines
 
     # text update
@@ -85,7 +85,7 @@ class UITextInputElement (UIElement):
         # wrap the text
         lines = self.__wrap_lines(lines, self.text_surface_size[0])
         # Update cursor
-        self.cursor_pos = self.__update_cursor(lines)
+        self.__update_cursor(lines)
 
         # Update surface size based on number of lines
         self.text_surface_size[1] = len(lines) * newline_size
@@ -103,35 +103,39 @@ class UITextInputElement (UIElement):
             # blit to text surface
             self.text_surface.blit(line_img, (0, newline_size * i))
 
-    def cursor_index_to_pos(self, i: int):
-        """
-        s = "This is a line\n\n\nThere are two empty lines above me!\nASLKJHKJHHFHDDGFFDKSJHF and such\n"
-        # IF LINE WRAPPING WAS DISABLED: ---------------
-        l = [
-            "This is a line",
-            "",
-            "",
-            "There are two empty lines above me!",
-            "ASLKJHKJHHFHDDGFFDKSJHF and such",
-            "",
-        ]
+    def cursor_index_to_pos(self, lines: list, i: int):
+        if len(lines) == 0:
+            return vec2(0, 0)
+        # Otherwise, increment index until we catch up
+        t = 0
+        local = 0
+        line_i = 0
+        while i > t and line_i < len(lines):
+            # Check if we're out of bounds with this line
+            if local >= len(lines[line_i]) and not (len(lines) == line_i):
+                # Increment t by an extra character (missing newline)
+                t += 1
+                # Increment the line we're on
+                line_i += 1
+                # Reset local offset
+                local = 0
+                continue
+            # Increment the local index and the total
+            t += 1
+            local += 1
 
-        Since the "newline" ('\n', and '\r') were removed at the ends of all the lines
-        """
-        pass
+        # clamp line_i to be less than the number of lines
+        line_i = min(line_i, len(lines) - 1)
+        print("LINES: {} \nI: {}".format(lines, i))
+        # Get size of the line and local string
+        s = self.font.size(lines[line_i][:local])
+        # Return a relative offset
+        return vec2(s[0], line_i * s[1])
 
     def __update_cursor(self, lines: list):
         # Loop through the lines, checking if any
-        #return vec2(self.font.size(self.text[:self.cursor_index])[0], 0)
-        ci = 0
-        cl = 0
-        for line in lines:
-            diff = ci + len(line) - self.cursor_index
-            if diff < 0:
-                ci = -diff
-                break
-            cl += 1
-        return vec2(self.font.size(lines[cl][:ci])[0], cl * self.font.size("X")[1])
+        self.__clamp_cursor()
+        self.cursor_pos = self.cursor_index_to_pos(lines, self.cursor_index)
 
     def __clamp_cursor(self):
         self.cursor_index = max(0, min(self.cursor_index, len(self.text)))
@@ -164,6 +168,10 @@ class UITextInputElement (UIElement):
                     new_text.pop(self.cursor_index - 1) # TODO: Check that this removes the correct character
                     self.text = "".join(new_text)
                     self.cursor_index -= 1 # decrement cursor index
+            # Capture modifier keys because for some reason if you don't they're interpreted as other things??? thanks pygame
+            elif key == pygame.K_LSHIFT or key == pygame.K_LCTRL or key == pygame.K_RSHIFT or key == pygame.K_RCTRL\
+                    or key == pygame.K_LALT or key == pygame.K_RALT or key == pygame.K_LMETA or key == pygame.K_RMETA:
+                "" # Do nothing
             # Cursor movement
             elif key == pygame.K_LEFT:
                 self.cursor_index -= 1
@@ -177,9 +185,8 @@ class UITextInputElement (UIElement):
                 self.text = "".join(new_text)
                 # Increment cursor pos
                 self.cursor_index += 1
-            # Update text and cursor
+            # Update text
             self.__update_text()
-            self.__clamp_cursor()
             # return
             return True
         # Not in focus

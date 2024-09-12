@@ -78,11 +78,20 @@ class UITextInputElement (UIElement):
         # Cast to int
         return int(s)
 
+    def __clamp_scroll_to_surface(self):
+        # Clamp to the text surface size
+        self.scroll_offset = max(min(self.scroll_offset, 0), self.collider.get_size()[1] - self.text_surface_size[1])
+
+    def __clamp_scroll_to_cursor(self):
+        # w is the height of the cursor character
+        w = self.cursor.get_size()[1]
+        self.scroll_offset = max(-self.cursor_pos[1], min(self.scroll_offset, self.get_size()[1] - (self.cursor_pos[1] + w)))
+
     def mouse_scroll_event(self, scroll_amount: float) -> bool:
         if self.active:
             # Update scroll offset and clamp it to range
             self.scroll_offset += self.__curve_scroll_speed(scroll_amount, 1.33, 10.0) # (ramp up more if user scrolls faster)
-            self.scroll_offset = max(min(self.scroll_offset, 0), self.collider.get_size()[1] - self.text_surface_size[1])
+            self.__clamp_scroll_to_surface()
 
             return True
         return False
@@ -121,9 +130,9 @@ class UITextInputElement (UIElement):
                 "" # Do nothing
             # Cursor movement
             elif key == pygame.K_LEFT:
-                self.cursor_index -= 1
+                self.cursor_nav(vec2(-1, 0))
             elif key == pygame.K_RIGHT:
-                self.cursor_index += 1
+                self.cursor_nav(vec2(1, 0))
             # Otherwise, type the char
             else:
                 # Insert char in at the cursor index
@@ -138,6 +147,12 @@ class UITextInputElement (UIElement):
             return True
         # Not in focus
         return False
+
+    def cursor_nav(self, direction: vec2, modifiers: pygame.key = None):
+        # Update the position
+        self.cursor_index += direction[0]
+        # Clamp the scroll to have editing pos in view
+        self.__clamp_scroll_to_cursor()
 
     # TEXT RENDERING ---------------------------------------------------------------------
 
@@ -183,6 +198,8 @@ class UITextInputElement (UIElement):
 
         # Update surface size based on number of lines
         self.text_surface_size[1] = len(lines) * newline_size
+        # Also update the scroll offset to be clamped within the new size
+        self.__clamp_scroll_to_surface()
         # Empty the surface
         self.text_surface = pygame.Surface(self.text_surface_size.elements, pygame.SRCALPHA, 32)
         self.text_surface = self.text_surface.convert_alpha()
@@ -230,6 +247,8 @@ class UITextInputElement (UIElement):
         # Loop through the lines, checking if any
         self.__clamp_cursor()
         self.cursor_pos = self.cursor_index_to_pos(lines, self.cursor_index)
+        # Remember that this is only called when edits are made, so we're okay to clamp scroll to cursor here (won't disallow users from scrolling away)
+        self.__clamp_scroll_to_cursor()
 
     def __clamp_cursor(self):
         self.cursor_index = max(0, min(self.cursor_index, len(self.text)))
@@ -239,12 +258,17 @@ class UITextInputElement (UIElement):
         self.render_surface = pygame.Surface(self.collider.get_size().elements, pygame.SRCALPHA, 32)
         self.render_surface = self.render_surface.convert_alpha()
 
-        # Draw text
-        self.render_surface.blit(self.text_surface, (0, self.scroll_offset))
-        # Draw cursor
+        # IF ACTIVE
+        s = 0
         if self.active:
-            p = vec2(self.cursor_pos[0], self.cursor_pos[1] + self.scroll_offset)
+            # Should scroll to where the scroll offset is
+            s = self.scroll_offset
+            # Draw cursor
+            p = vec2(self.cursor_pos[0], self.cursor_pos[1] + s)
             self.render_surface.blit(self.cursor, p.elements)
+
+        # Draw text
+        self.render_surface.blit(self.text_surface, (0, s))
 
     def draw(self, surface: pygame.Surface):
         # Update render surface

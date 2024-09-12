@@ -27,7 +27,20 @@ class UIObjectsLayer(Layer):
             x, y = [random.randint(0, 400) for i in range(2)]
             self.ui_elements.append(StickyNote(vec2(x, y), sprite_path, 200, -30))
 
-        text_el = UITextInputElement(vec2(20, 20), vec2(300, 50), 40, "bitch\r\rsad")
+        text = """\
+bitch!
+
+you KNOW i'm sexy
+
+UGH!
+
+don't call, just
+t e x t m e
+
+bitch I'm slow don't (idk the lyrics)\
+        """
+
+        text_el = UITextInputElement(vec2(20, 20), vec2(300, 50), 40, text)
         self.ui_elements.append(text_el)
 
         # Load sticky note sounds

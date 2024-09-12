@@ -4,6 +4,8 @@ from mist.util import *
 from mist.ui import UIElement
 from mist.ui import MouseBoxCollider
 
+import math
+
 class UITextInputElement (UIElement):
     def __init__(self, pos: vec2, size: vec2, font_size: int, initial_text: str = ""):
         super().__init__()
@@ -66,10 +68,20 @@ class UITextInputElement (UIElement):
             case pygame.KEYDOWN:
                 return self.keyboard_type_event(event.key, event.unicode)
 
-    def mouse_scroll_event(self, scroll_amount: int) -> bool:
+    @staticmethod
+    def __curve_scroll_speed(scroll_amount, curve_amt: float, scale: float = 5.0) -> int:
+        # Raise it to a power
+        s = math.pow(float(abs(scroll_amount)), curve_amt)
+        s *= scale
+        # Restore the original sign of the scroll amount
+        s = math.copysign(s, scroll_amount)
+        # Cast to int
+        return int(s)
+
+    def mouse_scroll_event(self, scroll_amount: float) -> bool:
         if self.active:
             # Update scroll offset and clamp it to range
-            self.scroll_offset += scroll_amount
+            self.scroll_offset += self.__curve_scroll_speed(scroll_amount, 1.33, 10.0) # (ramp up more if user scrolls faster)
             self.scroll_offset = max(min(self.scroll_offset, 0), self.collider.get_size()[1] - self.text_surface_size[1])
 
             return True

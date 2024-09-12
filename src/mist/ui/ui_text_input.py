@@ -14,13 +14,18 @@ class UITextInputElement (UIElement):
         # State
         self.active = False
         self.color = (0, 0, 0)
+        self.scroll_offset = 0
 
         # Create text objects
         self.text = initial_text
         self.font_size = font_size
         self.font = pygame.font.Font(None, self.font_size)
+        # Text surf
         self.text_surface = None
         self.text_surface_size = self.collider.get_size()
+        # Render surf
+        self.render_surface = pygame.Surface(self.collider.get_size().elements, pygame.SRCALPHA, 32)
+        self.render_surface = self.render_surface.convert_alpha()
         # Cursor
         self.cursor = pygame.Surface((2, self.font.size("|")[1]))
         self.cursor.fill(self.color)
@@ -29,7 +34,8 @@ class UITextInputElement (UIElement):
         # Update text display
         self.__update_text()
 
-    # SETTERS/GETTERS
+    # SETTERS/GETTERS --------------------------------------------------------------------
+
     def set_pos(self, pos: vec2):
         self.collider.pos = pos
 
@@ -46,99 +52,28 @@ class UITextInputElement (UIElement):
     def is_active(self):
         return self.active
 
-    def __wrap_lines(self, lines: list, wrap_width: int):
-        # initialize return
-        new_lines = [""]
-        # loop through each line
-        for line in lines:
-            # loop through all the characters
-            for char in line:
-                # Check the width of the current line if it had this character
-                if self.font.size((new_lines[-1] + char))[0] > wrap_width:
-                    # too big, start new line
-                    # Find last space
-                    i = new_lines[-1].rfind(" ")
-                    if i == -1:
-                        new_lines.append(char)
-                    else:
-                        # Add whatever's after the space to the new line
-                        new_lines.append(new_lines[-1][i + 1:] + char)
-                        new_lines[-2] = new_lines[-2][:i]
-                else:
-                    # not too big, keep adding to this line
-                    new_lines[-1] += char
-            # start new line
-            new_lines.append("")
-        # return
-        #return new_lines[:-1]
-        # TODO: Make this actually return wrapped lines
-        return lines
+    # EVENTS -----------------------------------------------------------------------------
 
-    # text update
-    def __update_text(self):
-        # MANUAL TEXT DRAW
-        # size of each line
-        newline_size = self.font.size("X")[1]
+    def on_event(self, event) -> bool:
+        # Dispatch the event
+        match event.type:
+            case pygame.MOUSEBUTTONDOWN:
+                return self.mouse_button_event(event.button, vec2(*pygame.mouse.get_pos()), True)
+            case pygame.MOUSEBUTTONUP:
+                return self.mouse_button_event(event.button, vec2(*pygame.mouse.get_pos()), False)
+            case pygame.MOUSEWHEEL:
+                return self.mouse_scroll_event(event.y)
+            case pygame.KEYDOWN:
+                return self.keyboard_type_event(event.key, event.unicode)
 
-        # Split current text into lines
-        lines = self.text.replace("\r", "\n").split("\n")
-        # wrap the text
-        lines = self.__wrap_lines(lines, self.text_surface_size[0])
-        # Update cursor
-        self.__update_cursor(lines)
+    def mouse_scroll_event(self, scroll_amount: int) -> bool:
+        if self.active:
+            # Update scroll offset and clamp it to range
+            self.scroll_offset += scroll_amount
+            self.scroll_offset = max(min(self.scroll_offset, 0), self.collider.get_size()[1] - self.text_surface_size[1])
 
-        # Update surface size based on number of lines
-        self.text_surface_size[1] = len(lines) * newline_size
-        # Empty the surface
-        self.text_surface = pygame.Surface(self.text_surface_size.elements, pygame.SRCALPHA, 32)
-        self.text_surface = self.text_surface.convert_alpha()
-        # Loop through lines, render each, and blit to text surface
-
-        for i in range(len(lines)):
-            # Don't bother rendering if the line is blank
-            if lines[i] == "":
-                continue
-            # Render the line
-            line_img = self.font.render(lines[i], True, self.color)
-            # blit to text surface
-            self.text_surface.blit(line_img, (0, newline_size * i))
-
-    def cursor_index_to_pos(self, lines: list, i: int):
-        if len(lines) == 0:
-            return vec2(0, 0)
-        # Otherwise, increment index until we catch up
-        t = 0
-        local = 0
-        line_i = 0
-        while i > t and line_i < len(lines):
-            # Check if we're out of bounds with this line
-            if local >= len(lines[line_i]) and not (len(lines) == line_i):
-                # Increment t by an extra character (missing newline)
-                t += 1
-                # Increment the line we're on
-                line_i += 1
-                # Reset local offset
-                local = 0
-                continue
-            # Increment the local index and the total
-            t += 1
-            local += 1
-
-        # clamp line_i to be less than the number of lines
-        line_i = min(line_i, len(lines) - 1)
-        print("LINES: {} \nI: {}".format(lines, i))
-        # Get size of the line and local string
-        s = self.font.size(lines[line_i][:local])
-        # Return a relative offset
-        return vec2(s[0], line_i * s[1])
-
-    def __update_cursor(self, lines: list):
-        # Loop through the lines, checking if any
-        self.__clamp_cursor()
-        self.cursor_pos = self.cursor_index_to_pos(lines, self.cursor_index)
-
-    def __clamp_cursor(self):
-        self.cursor_index = max(0, min(self.cursor_index, len(self.text)))
+            return True
+        return False
 
     def mouse_button_event(self, button, mouse_pos: vec2, is_down: bool) -> bool:
         # Left Click
@@ -192,20 +127,116 @@ class UITextInputElement (UIElement):
         # Not in focus
         return False
 
-    def on_event(self, event) -> bool:
-        # Dispatch the event
-        match event.type:
-            case pygame.MOUSEBUTTONDOWN:
-                return self.mouse_button_event(event.button, vec2(*pygame.mouse.get_pos()), True)
-            case pygame.MOUSEBUTTONUP:
-                return self.mouse_button_event(event.button, vec2(*pygame.mouse.get_pos()), False)
-            case pygame.KEYDOWN:
-                return self.keyboard_type_event(event.key, event.unicode)
+    # TEXT RENDERING ---------------------------------------------------------------------
 
-    def draw(self, surface: pygame.Surface):
+    def __wrap_lines(self, lines: list, wrap_width: int):
+        # initialize return
+        new_lines = [""]
+        # loop through each line
+        for line in lines:
+            # loop through all the characters
+            for char in line:
+                # Check the width of the current line if it had this character
+                if self.font.size((new_lines[-1] + char))[0] > wrap_width:
+                    # too big, start new line
+                    # Find last space
+                    i = new_lines[-1].rfind(" ")
+                    if i == -1:
+                        new_lines.append(char)
+                    else:
+                        # Add whatever's after the space to the new line
+                        new_lines.append(new_lines[-1][i + 1:] + char)
+                        new_lines[-2] = new_lines[-2][:i]
+                else:
+                    # not too big, keep adding to this line
+                    new_lines[-1] += char
+            # start new line
+            new_lines.append("")
+        # return
+        #return new_lines[:-1]
+        # TODO: Make this actually return wrapped lines
+        return lines
+
+    def __update_text(self):
+        # MANUAL TEXT DRAW
+        # size of each line
+        newline_size = self.font.size("X")[1]
+
+        # Split current text into lines
+        lines = self.text.replace("\r", "\n").split("\n")
+        # wrap the text
+        lines = self.__wrap_lines(lines, self.text_surface_size[0])
+        # Update cursor
+        self.__update_cursor(lines)
+
+        # Update surface size based on number of lines
+        self.text_surface_size[1] = len(lines) * newline_size
+        # Empty the surface
+        self.text_surface = pygame.Surface(self.text_surface_size.elements, pygame.SRCALPHA, 32)
+        self.text_surface = self.text_surface.convert_alpha()
+        # Loop through lines, render each, and blit to text surface
+
+        for i in range(len(lines)):
+            # Don't bother rendering if the line is blank
+            if lines[i] == "":
+                continue
+            # Render the line
+            line_img = self.font.render(lines[i], True, self.color)
+            # blit to text surface
+            self.text_surface.blit(line_img, (0, newline_size * i))
+
+    def cursor_index_to_pos(self, lines: list, i: int):
+        if len(lines) == 0:
+            return vec2(0, 0)
+        # Otherwise, increment index until we catch up
+        t = 0
+        local = 0
+        line_i = 0
+        while i > t and line_i < len(lines):
+            # Check if we're out of bounds with this line
+            if local >= len(lines[line_i]) and not (len(lines) == line_i):
+                # Increment t by an extra character (missing newline)
+                t += 1
+                # Increment the line we're on
+                line_i += 1
+                # Reset local offset
+                local = 0
+                continue
+            # Increment the local index and the total
+            t += 1
+            local += 1
+
+        # clamp line_i to be less than the number of lines
+        line_i = min(line_i, len(lines) - 1)
+
+        # Get size of the line and local string
+        s = self.font.size(lines[line_i][:local])
+        # Return a relative offset
+        return vec2(s[0], line_i * s[1])
+
+    def __update_cursor(self, lines: list):
+        # Loop through the lines, checking if any
+        self.__clamp_cursor()
+        self.cursor_pos = self.cursor_index_to_pos(lines, self.cursor_index)
+
+    def __clamp_cursor(self):
+        self.cursor_index = max(0, min(self.cursor_index, len(self.text)))
+
+    def draw_render_surface(self):
+        # Clear
+        self.render_surface = pygame.Surface(self.collider.get_size().elements, pygame.SRCALPHA, 32)
+        self.render_surface = self.render_surface.convert_alpha()
+
         # Draw text
-        surface.blit(self.text_surface, self.get_pos().elements)
+        self.render_surface.blit(self.text_surface, (0, self.scroll_offset))
         # Draw cursor
         if self.active:
-            surface.blit(self.cursor, (self.cursor_pos + self.get_pos()).elements)
+            p = vec2(self.cursor_pos[0], self.cursor_pos[1] + self.scroll_offset)
+            self.render_surface.blit(self.cursor, p.elements)
+
+    def draw(self, surface: pygame.Surface):
+        # Update render surface
+        self.draw_render_surface()
+        # Draw onto surface
+        surface.blit(self.render_surface, self.get_pos().elements)
 

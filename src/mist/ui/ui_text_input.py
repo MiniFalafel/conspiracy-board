@@ -86,6 +86,8 @@ class UITextInputElement (UIElement):
         # w is the height of the cursor character
         w = self.cursor.get_size()[1]
         self.scroll_offset = max(-self.cursor_pos[1], min(self.scroll_offset, self.get_size()[1] - (self.cursor_pos[1] + w)))
+        # Clamp back into the scroll surface
+        self.__clamp_scroll_to_surface()
 
     def mouse_scroll_event(self, scroll_amount: float) -> bool:
         if self.active:
@@ -241,7 +243,7 @@ class UITextInputElement (UIElement):
         # Get size of the line and local string
         s = self.font.size(lines[line_i][:local])
         # Return a relative offset
-        return vec2(s[0], line_i * s[1])
+        return vec2(s[0], line_i * self.cursor.get_size()[1])
 
     def __update_cursor(self, lines: list):
         # Loop through the lines, checking if any
@@ -258,11 +260,15 @@ class UITextInputElement (UIElement):
         self.render_surface = pygame.Surface(self.collider.get_size().elements, pygame.SRCALPHA, 32)
         self.render_surface = self.render_surface.convert_alpha()
 
-        # IF ACTIVE
+        # This makes sure that if there's too few lines to fill the rows, text stays at the top of the text box
         s = 0
-        if self.active:
-            # Should scroll to where the scroll offset is
+        if self.text_surface_size[1] >= self.get_size()[1]:
             s = self.scroll_offset
+        else:
+            s = 0
+
+        # IF ACTIVE
+        if self.active:
             # Draw cursor
             p = vec2(self.cursor_pos[0], self.cursor_pos[1] + s)
             self.render_surface.blit(self.cursor, p.elements)

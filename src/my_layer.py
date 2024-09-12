@@ -40,7 +40,7 @@ t e x t m e
 bitch I'm slow don't (idk the lyrics)\
         """
 
-        text_el = UITextInputElement(vec2(20, 20), vec2(300, 50), 40, text)
+        text_el = UITextInputElement(vec2(20, 20), vec2(300, 300), 40, text)
         self.ui_elements.append(text_el)
 
         # Load sticky note sounds
